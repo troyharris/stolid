@@ -1,0 +1,8 @@
+body {
+	font-family: 'Lato', sans-serif;
+}
+
+div#contain {
+	width: 1000px;
+	margin: 0 auto;
+}

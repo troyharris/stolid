@@ -10,10 +10,16 @@ import (
         "io/ioutil"
         "encoding/json"
         "path"
+        "bytes"
+        "text/template"
 )
 
 type Options struct {
     ContentPath, DestPath, TemplatePath string
+}
+
+type Article struct {
+    Title, Body string
 }
 
 var config = Options{}
@@ -21,7 +27,6 @@ var config = Options{}
 func readConfig () {
     configBytes := readFile("config.json")
     _ = json.Unmarshal(configBytes, &config)
-    //fmt.Println(string(configBytes))
 }
 
 func readFile (file string) []byte {
@@ -30,42 +35,46 @@ func readFile (file string) []byte {
     return b
 }
 
-func parseFile (name string, infile string, outfile string) {
-    top, bottom := buildPage(name)
+func parseFile (infile string) string {
 	p := markdown.NewParser(&markdown.Extensions{Smart: true})
 
    	fi, err := os.Open(infile)
     if err != nil { panic(err) }
-    // close fi on exit and check for its returned error
     defer func() {
         if err := fi.Close(); err != nil {
             panic(err)
         }
     }()
-
     r := bufio.NewReader(fi)
-
-   // open output file
-    newPath := path.Dir(outfile)
-    _ = os.MkdirAll(newPath, 0774)
-
-    fo, err := os.Create(outfile)
-    if err != nil { panic(err) }
-    // close fo on exit and check for its returned error
-    defer func() {
-        if err := fo.Close(); err != nil {
-            panic(err)
-        }
-    }() 
-
-    // make a write buffer
-    w := bufio.NewWriter(fo)
-
-    w.WriteString(top)
+    bw := make([]byte, 0)
+    w := bytes.NewBuffer(bw)
     p.Markdown(r, markdown.ToHTML(w))
-    w.WriteString(bottom)
+    return string(w.Bytes())
+}
 
-    if err = w.Flush(); err != nil { panic(err) }
+func parseArticle (infile string, title string) Article {
+    content := parseFile(infile)
+    return Article{Title: title, Body: content}
+}
+
+func parseTemplate (file string, data interface{}) (out []byte, error error) {
+    var buf bytes.Buffer
+    t, err := template.ParseFiles(file)
+    if err != nil {
+        return nil, err
+    }
+    err = t.Execute(&buf, data)
+    if err != nil {
+        return nil, err
+    }
+    return buf.Bytes(), nil
+}
+
+func createArticle (infile string, title string) []byte {
+    a := parseArticle(infile, title)
+    compiledHead, _ := parseTemplate(config.TemplatePath + "head.html", a)
+    compiledHTML, _ := parseTemplate(config.TemplatePath + "index.html", a)
+    return append(compiledHead, compiledHTML...)
 }
 
 func dirWalk (path string, info os.FileInfo, err error) error {
@@ -78,24 +87,17 @@ func dirWalk (path string, info os.FileInfo, err error) error {
 		htmlfile := config.DestPath + outdir + "/" + fileroot + "/index.html"
 	//	fmt.Printf("Found %s\n", fileroot)
         fmt.Println(htmlfile)
-		parseFile("index", path, htmlfile)
+		fullHTML := createArticle(path, "Temp Title")
+        writeHTML(htmlfile, fullHTML)
 	}
 	return nil
 }
 
-func templateSection (sectionName string) string {
-    h, err := ioutil.ReadFile("templates/" + sectionName + ".html")
-    if err != nil { panic(err) }
-    return string(h)
+func writeHTML (filePath string, content []byte) {
+    newPath := path.Dir(filePath)
+    _ = os.MkdirAll(newPath, 0774)
+    ioutil.WriteFile(filePath, content, 0774)
 }
-
-func buildPage (name string) (string, string) {
-    head := templateSection("head")
-    top := templateSection(name + "-top")
-    bottom := templateSection(name + "-bottom")
-    return head + top, bottom
-}
-
 
 func main() {
     readConfig()
