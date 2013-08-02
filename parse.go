@@ -27,7 +27,16 @@ type Header struct {
     SiteName, Title, Menu string
 }
 
+type PageFile struct {
+    MarkdownPath, AbsFilePath, RelFilePath, Title string
+}
+
+type PageContent struct {
+    Content string
+}
+
 var config = Options{}
+var siteMap = make(map[string][]PageFile)
 
 func readConfig () {
     configBytes := readFile("config.json")
@@ -78,26 +87,80 @@ func parseTemplate (file string, data interface{}) (out []byte, error error) {
     return buf.Bytes(), nil
 }
 
-func createArticle (infile string, title string) []byte {
+func createArticlePage (infile string, title string) []byte {
     a := parseArticle(infile)
     h := parseHeader(title)
     compiledHead, _ := parseTemplate(config.TemplatePath + "head.html", h)
-    compiledHTML, _ := parseTemplate(config.TemplatePath + "index.html", a)
+    compiledArticle, _ := parseTemplate(config.TemplatePath + "article.html", a)
+    content := PageContent{Content: string(compiledArticle)}
+    compiledHTML, _ := parseTemplate(config.TemplatePath + "index.html", content)
     return append(compiledHead, compiledHTML...)
+}
+
+func createCategoryPage (files []PageFile, name string) []byte {
+    title := cleanTitle(name)
+    h := parseHeader(title)
+    compiledHead, _ := parseTemplate(config.TemplatePath + "head.html", h)
+    articles := make([]byte, 0)
+    for _, p := range files {
+        a := parseArticle(p.MarkdownPath)
+        b, _ := parseTemplate(config.TemplatePath + "article.html", a)
+        articles = append(articles, b...)
+    }
+    content := PageContent{Content: string(articles)}
+    compiledHTML, _ := parseTemplate(config.TemplatePath + "index.html", content)
+    return append(compiledHead, compiledHTML...)
+}
+
+func createIndexPage (files []PageFile) []byte {
+    return createCategoryPage(files, config.SiteName)
 }
 
 func dirWalk (path string, info os.FileInfo, err error) error {
     if info.IsDir() == false && filepath.Ext(path) == ".md"{
         fileroot := strings.Split(info.Name(), ".md")[0]
         outtail := strings.Split(path, config.ContentPath)[1]
-        fmt.Println(outtail)
+        //fmt.Println(outtail)
         outdir := filepath.Dir(outtail)
-        htmlfile := config.DestPath + outdir + "/" + fileroot + "/index.html"
-        fmt.Println(htmlfile)
-        fullHTML := createArticle(path, "Temp Title")
+        //fmt.Println(outdir)
+        relfile := outdir + "/" + fileroot + "/index.html"
+        htmlfile := config.DestPath + relfile
+        rootwebfile := "/" + relfile
+        //fmt.Println(htmlfile)
+        title := cleanTitle(fileroot)
+        fullHTML := createArticlePage(path, title)
         writeHTML(htmlfile, fullHTML)
+        page := PageFile{MarkdownPath: path, AbsFilePath: htmlfile, RelFilePath: rootwebfile, Title: title}
+        a, ok := siteMap[outdir]
+        if (ok) {
+            siteMap[outdir] = append(a, page)
+        }  else {
+            siteMap[outdir] = []PageFile{page}
+        }
     }
     return nil
+}
+
+func cleanTitle (filename string) string {
+    return strings.Replace(filename, "_", " ", -1)
+}
+
+func compileFiles (root string) {
+    _ = filepath.Walk(root, dirWalk)
+    defer func () {
+        buildIndexes()
+    }()
+}
+
+func buildIndexes () {
+    index := make([]PageFile, 0)
+    for cat, page := range siteMap {
+        index = append(index, page...)
+        catPage := createCategoryPage(page, cat)
+        catPath := config.DestPath + cat + "/index.html"
+        writeHTML(catPath, catPage)
+    }
+    writeHTML(config.DestPath + "/index.html", createIndexPage(index))
 }
 
 func writeHTML (filePath string, content []byte) {
@@ -130,7 +193,9 @@ func buildMenu () string {
 
 func main() {
     readConfig()
-    fmt.Printf("DestPath is %s and TemplatePath is %s", config.DestPath, config.TemplatePath)
+    //fmt.Printf("DestPath is %s and TemplatePath is %s", config.DestPath, config.TemplatePath)
     root := config.ContentPath
-    _ = filepath.Walk(root, dirWalk)
+    //compileFiles(root)
+    compileFiles(root)
+    fmt.Println("Done")
 }
