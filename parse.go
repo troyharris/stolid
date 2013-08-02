@@ -1,18 +1,18 @@
 package main
 
 import (
-		"github.com/knieriem/markdown"
-		"bufio"
-		"os"
-		"fmt"
-		"path/filepath"
-		"strings"
-        "io/ioutil"
-        "encoding/json"
-        "path"
-        "bytes"
-        "text/template"
-        "sort"
+    "github.com/knieriem/markdown"
+    "bufio"
+    "os"
+    "fmt"
+    "path/filepath"
+    "strings"
+    "io/ioutil"
+    "encoding/json"
+    "path"
+    "bytes"
+    "text/template"
+    "sort"
 )
 
 type Options struct {
@@ -41,9 +41,8 @@ func readFile (file string) []byte {
 }
 
 func parseFile (infile string) string {
-	p := markdown.NewParser(&markdown.Extensions{Smart: true})
-
-   	fi, err := os.Open(infile)
+    p := markdown.NewParser(&markdown.Extensions{Smart: true})
+    fi, err := os.Open(infile)
     if err != nil { panic(err) }
     defer func() {
         if err := fi.Close(); err != nil {
@@ -88,19 +87,17 @@ func createArticle (infile string, title string) []byte {
 }
 
 func dirWalk (path string, info os.FileInfo, err error) error {
-	if info.IsDir() == false && filepath.Ext(path) == ".md"{
-		fileroot := strings.Split(info.Name(), ".md")[0]
+    if info.IsDir() == false && filepath.Ext(path) == ".md"{
+        fileroot := strings.Split(info.Name(), ".md")[0]
         outtail := strings.Split(path, config.ContentPath)[1]
         fmt.Println(outtail)
         outdir := filepath.Dir(outtail)
-      //  fmt.Println(path)
-		htmlfile := config.DestPath + outdir + "/" + fileroot + "/index.html"
-	//	fmt.Printf("Found %s\n", fileroot)
+        htmlfile := config.DestPath + outdir + "/" + fileroot + "/index.html"
         fmt.Println(htmlfile)
-		fullHTML := createArticle(path, "Temp Title")
+        fullHTML := createArticle(path, "Temp Title")
         writeHTML(htmlfile, fullHTML)
-	}
-	return nil
+    }
+    return nil
 }
 
 func writeHTML (filePath string, content []byte) {
@@ -134,6 +131,6 @@ func buildMenu () string {
 func main() {
     readConfig()
     fmt.Printf("DestPath is %s and TemplatePath is %s", config.DestPath, config.TemplatePath)
-	root := config.ContentPath
-	_ = filepath.Walk(root, dirWalk)
+    root := config.ContentPath
+    _ = filepath.Walk(root, dirWalk)
 }
