@@ -12,14 +12,19 @@ import (
         "path"
         "bytes"
         "text/template"
+        "sort"
 )
 
 type Options struct {
-    ContentPath, DestPath, TemplatePath string
+    SiteName, WebRoot, ContentPath, DestPath, TemplatePath string
 }
 
 type Article struct {
-    Title, Body string
+    Body string
+}
+
+type Header struct {
+    SiteName, Title, Menu string
 }
 
 var config = Options{}
@@ -52,9 +57,13 @@ func parseFile (infile string) string {
     return string(w.Bytes())
 }
 
-func parseArticle (infile string, title string) Article {
+func parseArticle (infile string) Article {
     content := parseFile(infile)
-    return Article{Title: title, Body: content}
+    return Article{Body: content}
+}
+
+func parseHeader (title string) Header {
+    return Header{SiteName: config.SiteName, Title: title, Menu: buildMenu()}
 }
 
 func parseTemplate (file string, data interface{}) (out []byte, error error) {
@@ -71,8 +80,9 @@ func parseTemplate (file string, data interface{}) (out []byte, error error) {
 }
 
 func createArticle (infile string, title string) []byte {
-    a := parseArticle(infile, title)
-    compiledHead, _ := parseTemplate(config.TemplatePath + "head.html", a)
+    a := parseArticle(infile)
+    h := parseHeader(title)
+    compiledHead, _ := parseTemplate(config.TemplatePath + "head.html", h)
     compiledHTML, _ := parseTemplate(config.TemplatePath + "index.html", a)
     return append(compiledHead, compiledHTML...)
 }
@@ -97,6 +107,28 @@ func writeHTML (filePath string, content []byte) {
     newPath := path.Dir(filePath)
     _ = os.MkdirAll(newPath, 0774)
     ioutil.WriteFile(filePath, content, 0774)
+}
+
+func getCategories (rootPath string) []string {
+    d, _ := ioutil.ReadDir(rootPath)
+    a := make([]string, 0)
+    for _, v := range d {
+        if v.IsDir() {
+            a = append(a, v.Name())
+        }
+    }
+    sort.Strings(a)
+    return a
+}
+
+func buildMenu () string {
+    cats := getCategories(config.ContentPath)
+    menu := "<ul>"
+    for _, v := range cats {
+        menu += "<li><a href='" + config.WebRoot + v + "'>" + v + "</a></li>"
+    }
+    menu += "</ul>"
+    return menu
 }
 
 func main() {
