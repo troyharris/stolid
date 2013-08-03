@@ -161,6 +161,7 @@ func buildIndexes () {
         writeHTML(catPath, catPage)
     }
     writeHTML(config.DestPath + "/index.html", createIndexPage(index))
+    siteMap = make(map[string][]PageFile)
 }
 
 func writeHTML (filePath string, content []byte) {
@@ -191,8 +192,7 @@ func buildMenu () string {
     return menu
 }
 
-func main() {
-    readConfig()
+func buildSite () {
     //fmt.Printf("DestPath is %s and TemplatePath is %s", config.DestPath, config.TemplatePath)
     root := config.ContentPath
     //compileFiles(root)

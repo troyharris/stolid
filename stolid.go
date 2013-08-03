@@ -7,9 +7,10 @@ import (
     "io/ioutil"
     "strings"
     "path/filepath"
+    "time"
 )
 
-var rootPath string = "/Users/troy.harris/stolidweb/"
+var rootPath string
 
 func loadPage (file string) (string, error) {
 	filePath := strings.TrimRight(rootPath, "/") + file
@@ -59,7 +60,33 @@ func walkHandlers (path string, info os.FileInfo, err error) error {
 	return nil
 }
 
+func updateExists() (bool, error) {
+    _, err := os.Stat("update")
+    if err == nil { return true, nil }
+    if os.IsNotExist(err) { return false, nil }
+    return false, err
+}
+
+func checkUpdate () error {
+	u, err := updateExists()
+	if (u) {
+		os.Remove("update")
+		buildSite()
+	}
+	return err
+}
+
+func startUpdateLoop () {
+	for {
+		_ = checkUpdate()
+		time.Sleep(5 * time.Second)
+	}
+}
+
 func main() {
+	readConfig()
+	rootPath = config.DestPath
+	go startUpdateLoop()
 	_ = filepath.Walk(rootPath, walkHandlers)
  //   http.HandleFunc("/", handler)
     http.ListenAndServe(":8080", nil)
